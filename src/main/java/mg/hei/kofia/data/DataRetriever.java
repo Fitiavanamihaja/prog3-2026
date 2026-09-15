@@ -158,19 +158,25 @@ public class DataRetriever {
                 : "INSERT INTO trip (driver_id, vehicle_id, trip_date, departure_city, arrival_city, "
                     + "distance_km, billed_amount, status, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-        try (Connection conn = dbConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, trip.getDriver().getId());
-            ps.setString(2, trip.getVehicle().getId());
-            ps.setDate(3, Date.valueOf(trip.getTripDate()));
-            ps.setString(4, trip.getDepartureCity());
-            ps.setString(5, trip.getArrivalCity());
-            ps.setInt(6, trip.getDistanceKm());
-            ps.setLong(7, trip.getBilledAmount());
-            ps.setString(8, trip.getStatus().name());
-            ps.setString(9, trip.getId());
-            ps.executeUpdate();
-            return trip;
+        try (Connection conn = dbConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, trip.getDriver().getId());
+                ps.setString(2, trip.getVehicle().getId());
+                ps.setDate(3, Date.valueOf(trip.getTripDate()));
+                ps.setString(4, trip.getDepartureCity());
+                ps.setString(5, trip.getArrivalCity());
+                ps.setInt(6, trip.getDistanceKm());
+                ps.setLong(7, trip.getBilledAmount());
+                ps.setString(8, trip.getStatus().name());
+                ps.setString(9, trip.getId());
+                ps.executeUpdate();
+                conn.commit();
+                return trip;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
         } catch (SQLException e) {
             throw new RuntimeException("Erreur JDBC dans saveTrip", e);
         }
@@ -178,13 +184,20 @@ public class DataRetriever {
 
     public Trip updateTripStatus(String tripId, TripStatus status) {
         String sql = "UPDATE trip SET status = ? WHERE id = ?";
-        try (Connection conn = dbConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, status.name());
-            ps.setString(2, tripId);
-            int rows = ps.executeUpdate();
-            if (rows == 0) {
-                return null;
+        try (Connection conn = dbConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, status.name());
+                ps.setString(2, tripId);
+                int rows = ps.executeUpdate();
+                if (rows == 0) {
+                    conn.rollback();
+                    return null;
+                }
+                conn.commit();
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
             }
         } catch (SQLException e) {
             throw new RuntimeException("Erreur JDBC dans updateTripStatus", e);
